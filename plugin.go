@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/nori-io/sql-gorm/hook"
 
 	"github.com/jinzhu/gorm"
 	"github.com/nori-io/common/v3/config"
@@ -22,13 +23,9 @@ type service struct {
 	logger logger.FieldLogger
 }
 
-type Logger struct {
-	origin   logger.FieldLogger
-}
-
 type pluginConfig struct {
-	dsn string
-	dialect          string
+	dsn     string
+	dialect string
 	logMode bool
 }
 
@@ -38,7 +35,7 @@ var (
 
 func (p *service) Init(ctx context.Context, config config.Config, log logger.FieldLogger) error {
 	p.logger = log
-	p.config.logMode=config.Bool("logMode", "log mode: true or false")()
+	p.config.logMode = config.Bool("logMode", "log mode: true or false")()
 	p.config.dsn = config.String("dsn", "database connection string")()
 	p.config.dialect = config.String("dialect", "sql dialect: mssql, mysql, postgres, sqlite")()
 	return nil
@@ -79,12 +76,12 @@ func (p *service) Meta() meta.Meta {
 
 func (p *service) Start(ctx context.Context, registry plugin.Registry) error {
 	var err error
-	p.db, err=gorm.Open(p.config.dialect, p.config.dsn)
+	p.db, err = gorm.Open(p.config.dialect, p.config.dsn)
 	if err != nil {
 		p.logger.Error(err.Error())
-	}else {
+	} else {
 		p.db.LogMode(p.config.logMode)
-		p.db.SetLogger(&Logger{origin: p.logger})
+		p.db.SetLogger(&hook.Logger{Origin: p.logger})
 	}
 
 	return err
@@ -98,10 +95,3 @@ func (p *service) Stop(ctx context.Context, registry plugin.Registry) error {
 
 	return err
 }
-
-func (l *Logger) Print(values ...interface{}){
-	for _,v:=range gorm.LogFormatter(values...){
-		l.origin.Debug("%s\n", v)
-	}
-}
-
