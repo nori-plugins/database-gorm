@@ -33,6 +33,7 @@ var (
 )
 
 func (p *service) Init(ctx context.Context, config config.Config, log logger.FieldLogger) error {
+	p.logger = log
 	p.config.connectionString = config.String("connectionString", "Connection string consists needed data for connect to database")()
 	p.config.dialect = config.String("dialect", "dialect")()
 	return nil
