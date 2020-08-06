@@ -22,10 +22,14 @@ type service struct {
 	logger logger.FieldLogger
 }
 
-//one parameter with format  host:port
+type Logger struct {
+	origin   logger.FieldLogger
+}
+
 type pluginConfig struct {
-	connectionString string
+	dsn string
 	dialect          string
+	logMode bool
 }
 
 var (
@@ -34,8 +38,9 @@ var (
 
 func (p *service) Init(ctx context.Context, config config.Config, log logger.FieldLogger) error {
 	p.logger = log
-	p.config.connectionString = config.String("connectionString", "Connection string consists needed data for connect to database")()
-	p.config.dialect = config.String("dialect", "dialect")()
+	p.config.logMode=config.Bool("logMode", "log mode: true or false")()
+	p.config.dsn = config.String("dsn", "database connection string")()
+	p.config.dialect = config.String("dialect", "sql dialect: mssql, mysql, postgres, sqlite")()
 	return nil
 }
 
@@ -73,10 +78,13 @@ func (p *service) Meta() meta.Meta {
 }
 
 func (p *service) Start(ctx context.Context, registry plugin.Registry) error {
-
-	_, err := gorm.Open(p.config.dialect, p.config.connectionString)
+	var err error
+	p.db, err=gorm.Open(p.config.dialect, p.config.dsn)
 	if err != nil {
 		p.logger.Error(err.Error())
+	}else {
+		p.db.LogMode(p.config.logMode)
+		p.db.SetLogger(&Logger{origin: p.logger})
 	}
 
 	return err
@@ -90,3 +98,10 @@ func (p *service) Stop(ctx context.Context, registry plugin.Registry) error {
 
 	return err
 }
+
+func (l *Logger) Print(values ...interface{}){
+	for _,v:=range gorm.LogFormatter(values...){
+		l.origin.Debug("%s\n", v)
+	}
+}
+
