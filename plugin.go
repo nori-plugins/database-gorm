@@ -31,9 +31,8 @@ type pluginConfig struct {
 }
 
 var (
-	Plugin plugin.Plugin = &service{}
-	dialects = [4]string{"mssql", "mysql", "postgres", "sqlite"}
-
+	Plugin   plugin.Plugin = &service{}
+	dialects               = [4]string{"mssql", "mysql", "postgres", "sqlite"}
 )
 
 func (p *service) Init(ctx context.Context, config config.Config, log logger.FieldLogger) error {
@@ -45,13 +44,13 @@ func (p *service) Init(ctx context.Context, config config.Config, log logger.Fie
 	p.config.dsn = config.String("dsn", "database connection string")()
 	p.config.dialect = config.String("dialect", "sql dialect: mssql, mysql, postgres, sqlite")()
 
-	for _,v :=range dialects{
-		if v==p.config.dialect{
-			isValidDialect=true
+	for _, v := range dialects {
+		if v == p.config.dialect {
+			isValidDialect = true
 		}
 	}
-	
-	if !isValidDialect{
+
+	if !isValidDialect {
 		return errors.New("Dialect is wrong. You should use on of sql dialects: mssql, mysql, postgres, sqlite")
 	}
 	return nil
@@ -97,7 +96,7 @@ func (p *service) Start(ctx context.Context, registry plugin.Registry) error {
 		p.logger.Error(err.Error())
 	} else {
 		p.db.LogMode(p.config.logMode)
-		if p.config.logMode==true {
+		if p.config.logMode == true {
 			p.db.SetLogger(&hook.Logger{Origin: p.logger})
 		}
 	}
