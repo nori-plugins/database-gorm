@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"github.com/nori-io/sql-gorm/hook"
 
 	"github.com/jinzhu/gorm"
@@ -31,13 +32,28 @@ type pluginConfig struct {
 
 var (
 	Plugin plugin.Plugin = &service{}
+	dialects = [4]string{"mssql", "mysql", "postgres", "sqlite"}
+
 )
 
 func (p *service) Init(ctx context.Context, config config.Config, log logger.FieldLogger) error {
+
+	var isValidDialect bool
+
 	p.logger = log
 	p.config.logMode = config.Bool("logMode", "log mode: true or false")()
 	p.config.dsn = config.String("dsn", "database connection string")()
 	p.config.dialect = config.String("dialect", "sql dialect: mssql, mysql, postgres, sqlite")()
+
+	for _,v :=range dialects{
+		if v==p.config.dialect{
+			isValidDialect=true
+		}
+	}
+	
+	if !isValidDialect{
+		return errors.New("Dialect is wrong. You should use on of sql dialects: mssql, mysql, postgres, sqlite")
+	}
 	return nil
 }
 
@@ -81,7 +97,9 @@ func (p *service) Start(ctx context.Context, registry plugin.Registry) error {
 		p.logger.Error(err.Error())
 	} else {
 		p.db.LogMode(p.config.logMode)
-		p.db.SetLogger(&hook.Logger{Origin: p.logger})
+		if p.config.logMode==true {
+			p.db.SetLogger(&hook.Logger{Origin: p.logger})
+		}
 	}
 
 	return err
