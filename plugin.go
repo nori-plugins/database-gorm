@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"github.com/nori-io/sql-gorm/hook"
+	"github.com/nori-io/sql-gorm/internal/hook"
 
 	"github.com/jinzhu/gorm"
 	"github.com/nori-io/common/v3/config"
@@ -40,9 +40,9 @@ func (p *service) Init(ctx context.Context, config config.Config, log logger.Fie
 	var isValidDialect bool
 
 	p.logger = log
-	p.config.logMode = config.Bool("logMode", "log mode: true or false")()
-	p.config.dsn = config.String("dsn", "database connection string")()
-	p.config.dialect = config.String("dialect", "sql dialect: mssql, mysql, postgres, sqlite")()
+	p.config.logMode = config.Bool("sql.gorm.logMode", "log mode: true or false")()
+	p.config.dsn = config.String("sql.gorm.dsn", "database connection string")()
+	p.config.dialect = config.String("sql.gorm.dialect", "sql dialect: mssql, mysql, postgres, sqlite")()
 
 	for _, v := range dialects {
 		if v == p.config.dialect {
