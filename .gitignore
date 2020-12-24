@@ -1,0 +1,6 @@
+.idea/
+*.so
+vendor/
+Gopkg.lock
+*.so
+bin/
