@@ -1,17 +1,21 @@
-package main
+package plugin
 
 import (
 	"context"
 	"errors"
 
-	"github.com/nori-io/sql-gorm/internal/hook"
+	"github.com/nori-io/common/v4/pkg/domain/registry"
+
+	"github.com/nori-plugins/database-orm-gorm/internal/hook"
 
 	"github.com/jinzhu/gorm"
-	"github.com/nori-io/common/v3/config"
-	"github.com/nori-io/common/v3/logger"
-	"github.com/nori-io/common/v3/meta"
-	"github.com/nori-io/common/v3/plugin"
-	i "github.com/nori-io/interfaces/public/sql/gorm"
+	"github.com/nori-io/common/v4/pkg/domain/config"
+	em "github.com/nori-io/common/v4/pkg/domain/enum/meta"
+	"github.com/nori-io/common/v4/pkg/domain/logger"
+	"github.com/nori-io/common/v4/pkg/domain/meta"
+	p "github.com/nori-io/common/v4/pkg/domain/plugin"
+	m "github.com/nori-io/common/v4/pkg/meta"
+	i "github.com/nori-io/interfaces/database/orm/gorm"
 
 	_ "github.com/jinzhu/gorm/dialects/mssql"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
@@ -19,25 +23,24 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 )
 
-type service struct {
+var (
+	Plugin   p.Plugin = plugin{}
+	dialects          = [4]string{"mssql", "mysql", "postgres", "sqlite"}
+)
+
+type plugin struct {
 	db     *gorm.DB
-	config *pluginConfig
+	config conf
 	logger logger.FieldLogger
 }
 
-type pluginConfig struct {
+type conf struct {
 	dsn     string
 	dialect string
 	logMode bool
 }
 
-var (
-	Plugin   plugin.Plugin = &service{}
-	dialects               = [4]string{"mssql", "mysql", "postgres", "sqlite"}
-)
-
-func (p *service) Init(ctx context.Context, config config.Config, log logger.FieldLogger) error {
-
+func (p plugin) Init(ctx context.Context, config config.Config, log logger.FieldLogger) error {
 	var isValidDialect bool
 
 	p.logger = log
@@ -57,45 +60,37 @@ func (p *service) Init(ctx context.Context, config config.Config, log logger.Fie
 	return nil
 }
 
-func (p *service) Instance() interface{} {
+func (p plugin) Instance() interface{} {
 	return p.db
 }
 
-func (p *service) Meta() meta.Meta {
-	return meta.Data{
-		ID: meta.ID{
+func (p plugin) Meta() meta.Meta {
+	return m.Meta{
+		ID: m.ID{
 			ID:      "sql/gorm",
 			Version: "1.9.15",
 		},
-		Author: meta.Author{
+		Author: m.Author{
 			Name: "Nori.io",
-			URI:  "https://nori.io/",
+			URL:  "https://nori.io/",
 		},
 		Dependencies: []meta.Dependency{},
-		Description: meta.Description{
-			Name:        "Nori: ORM GORM",
+		Description: m.Description{
+			Title:       "",
 			Description: "This plugin implements instance of ORM GORM",
 		},
-		Core: meta.Core{
-			VersionConstraint: "^0.2.0",
-		},
 		Interface: i.GormInterface,
-		License: []meta.License{
-			{
-				Title: "GPLv3",
-				Type:  "GPLv3",
-				URI:   "https://www.gnu.org/licenses/"},
-		},
-		Links: []meta.Link{},
-		Repository: meta.Repository{
-			Type: "git",
-			URI:  "https://github.com/nori-io/sql-gorm",
+		License:   []meta.License{},
+		Links:     []meta.Link{},
+		Repository: m.Repository{
+			Type: em.Git,
+			URL:  "https://github.com/nori-io/sql-gorm",
 		},
 		Tags: []string{"orm", "gorm", "sql", "database", "db"},
 	}
 }
 
-func (p *service) Start(ctx context.Context, registry plugin.Registry) error {
+func (p plugin) Start(ctx context.Context, registry registry.Registry) error {
 	var err error
 	p.db, err = gorm.Open(p.config.dialect, p.config.dsn)
 	if err != nil {
@@ -110,7 +105,7 @@ func (p *service) Start(ctx context.Context, registry plugin.Registry) error {
 	return err
 }
 
-func (p *service) Stop(ctx context.Context, registry plugin.Registry) error {
+func (p plugin) Stop(ctx context.Context, registry registry.Registry) error {
 	err := p.db.Close()
 	if err != nil {
 		p.logger.Error(err.Error())
