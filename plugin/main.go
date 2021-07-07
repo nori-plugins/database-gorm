@@ -1,8 +1,10 @@
-package plugin
+package main
 
 import (
 	"context"
 	"errors"
+
+	p "github.com/nori-io/common/v4/pkg/domain/plugin"
 
 	"github.com/nori-io/common/v4/pkg/domain/registry"
 
@@ -13,7 +15,6 @@ import (
 	em "github.com/nori-io/common/v4/pkg/domain/enum/meta"
 	"github.com/nori-io/common/v4/pkg/domain/logger"
 	"github.com/nori-io/common/v4/pkg/domain/meta"
-	p "github.com/nori-io/common/v4/pkg/domain/plugin"
 	m "github.com/nori-io/common/v4/pkg/meta"
 	i "github.com/nori-io/interfaces/database/orm/gorm"
 
@@ -23,10 +24,11 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 )
 
-var (
-	Plugin   p.Plugin = plugin{}
-	dialects          = [4]string{"mssql", "mysql", "postgres", "sqlite"}
-)
+var dialects = [4]string{"mssql", "mysql", "postgres", "sqlite"}
+
+func New() p.Plugin {
+	return &plugin{}
+}
 
 type plugin struct {
 	db     *gorm.DB
