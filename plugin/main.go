@@ -4,27 +4,27 @@ import (
 	"context"
 	"errors"
 
-	p "github.com/nori-io/common/v4/pkg/domain/plugin"
+	p "github.com/nori-io/common/v5/pkg/domain/plugin"
 
-	"github.com/nori-io/common/v4/pkg/domain/registry"
+	"github.com/nori-io/common/v5/pkg/domain/registry"
 
 	"github.com/nori-plugins/database-orm-gorm/internal/hook"
 
-	"github.com/jinzhu/gorm"
-	"github.com/nori-io/common/v4/pkg/domain/config"
-	em "github.com/nori-io/common/v4/pkg/domain/enum/meta"
-	"github.com/nori-io/common/v4/pkg/domain/logger"
-	"github.com/nori-io/common/v4/pkg/domain/meta"
-	m "github.com/nori-io/common/v4/pkg/meta"
-	i "github.com/nori-io/interfaces/database/orm/gorm"
+	"github.com/nori-io/common/v5/pkg/domain/config"
+	em "github.com/nori-io/common/v5/pkg/domain/enum/meta"
+	"github.com/nori-io/common/v5/pkg/domain/logger"
+	"github.com/nori-io/common/v5/pkg/domain/meta"
+	m "github.com/nori-io/common/v5/pkg/meta"
+	i "github.com/nori-io/interfaces/database/gorm"
 
-	_ "github.com/jinzhu/gorm/dialects/mssql"
-	_ "github.com/jinzhu/gorm/dialects/mysql"
-	_ "github.com/jinzhu/gorm/dialects/postgres"
-	_ "github.com/jinzhu/gorm/dialects/sqlite"
+	"gorm.io/gorm"
+
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 )
 
-var dialects = [4]string{"mssql", "mysql", "postgres", "sqlite"}
+var dialects = [3]string{"mysql", "postgres", "sqlite"}
 
 func New() p.Plugin {
 	return &plugin{}
@@ -57,7 +57,7 @@ func (p plugin) Init(ctx context.Context, config config.Config, log logger.Field
 	}
 
 	if !isValidDialect {
-		return errors.New("Dialect is wrong. You should use on of sql dialects: mssql, mysql, postgres, sqlite")
+		return errors.New("Dialect is wrong. You should use on of sql dialects: mysql, postgres, sqlite")
 	}
 	return nil
 }
@@ -94,7 +94,16 @@ func (p plugin) Meta() meta.Meta {
 
 func (p plugin) Start(ctx context.Context, registry registry.Registry) error {
 	var err error
-	p.db, err = gorm.Open(p.config.dialect, p.config.dsn)
+
+	switch p.config.dialect {
+	case "mysql":
+		p.db, err = gorm.Open(mysql.Open(p.config.dsn), &gorm.Config{})
+	case "postgres":
+		p.db, err = gorm.Open(postgres.Open(p.config.dsn), &gorm.Config{})
+	case "sqllite":
+		p.db, err = gorm.Open(sqlite.Open(p.config.dsn), &gorm.Config{})
+	}
+
 	if err != nil {
 		p.logger.Error(err.Error())
 	} else {
