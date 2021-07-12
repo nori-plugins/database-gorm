@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"errors"
+	"strconv"
 
 	p "github.com/nori-io/common/v5/pkg/domain/plugin"
 
 	"github.com/nori-io/common/v5/pkg/domain/registry"
 
-	"github.com/nori-plugins/database-orm-gorm/internal/hook"
+	"github.com/nori-plugins/database-gorm/internal/hook"
 
 	"github.com/nori-io/common/v5/pkg/domain/config"
 	em "github.com/nori-io/common/v5/pkg/domain/enum/meta"
@@ -18,13 +19,17 @@ import (
 	i "github.com/nori-io/interfaces/database/gorm"
 
 	"gorm.io/gorm"
+	gormLogger "gorm.io/gorm/logger"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 )
 
-var dialects = [3]string{"mysql", "postgres", "sqlite"}
+var (
+	dialects = [3]string{"mysql", "postgres", "sqlite"}
+	logModes = [4]string{"silent", "error", "warn", "info"}
+)
 
 func New() p.Plugin {
 	return &plugin{}
@@ -39,14 +44,14 @@ type plugin struct {
 type conf struct {
 	dsn     string
 	dialect string
-	logMode bool
+	logMode string
 }
 
 func (p plugin) Init(ctx context.Context, config config.Config, log logger.FieldLogger) error {
-	var isValidDialect bool
+	var isValidDialect, isValidLogMode bool
 
 	p.logger = log
-	p.config.logMode = config.Bool("sql.gorm.logMode", "log mode: true or false")()
+	p.config.logMode = config.String("sql.gorm.logMode", "log mode: silent, error, warn, info")()
 	p.config.dsn = config.String("sql.gorm.dsn", "database connection string")()
 	p.config.dialect = config.String("sql.gorm.dialect", "sql dialect: mssql, mysql, postgres, sqlite")()
 
@@ -56,8 +61,19 @@ func (p plugin) Init(ctx context.Context, config config.Config, log logger.Field
 		}
 	}
 
+	for i, v := range logModes {
+		if v == p.config.dialect {
+			isValidLogMode = true
+			p.config.logMode = string(i)
+		}
+	}
+
 	if !isValidDialect {
 		return errors.New("Dialect is wrong. You should use on of sql dialects: mysql, postgres, sqlite")
+	}
+
+	if !isValidLogMode {
+		p.config.logMode = string(0)
 	}
 	return nil
 }
@@ -97,30 +113,31 @@ func (p plugin) Start(ctx context.Context, registry registry.Registry) error {
 
 	switch p.config.dialect {
 	case "mysql":
-		p.db, err = gorm.Open(mysql.Open(p.config.dsn), &gorm.Config{})
+		p.db, err = gorm.Open(mysql.Open(p.config.dsn), &gorm.Config{Logger: &hook.Logger{Origin: p.logger}})
 	case "postgres":
 		p.db, err = gorm.Open(postgres.Open(p.config.dsn), &gorm.Config{})
 	case "sqllite":
 		p.db, err = gorm.Open(sqlite.Open(p.config.dsn), &gorm.Config{})
 	}
-
 	if err != nil {
 		p.logger.Error(err.Error())
 	} else {
-		p.db.LogMode(p.config.logMode)
-		if p.config.logMode == true {
-			p.db.SetLogger(&hook.Logger{Origin: p.logger})
+		logLevel, err := strconv.Atoi(p.config.logMode)
+		if err == nil {
+			p.db.Logger.LogMode(gormLogger.LogLevel(logLevel))
+		} else {
+			p.logger.Error(err.Error())
 		}
 	}
-
 	return err
 }
 
 func (p plugin) Stop(ctx context.Context, registry registry.Registry) error {
-	err := p.db.Close()
+	db, err := p.db.DB()
 	if err != nil {
 		p.logger.Error(err.Error())
+		return err
 	}
-
+	err = db.Close()
 	return err
 }
