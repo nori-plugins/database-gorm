@@ -3,7 +3,10 @@ package main
 import (
 	"context"
 	"errors"
+	"log"
 	"strconv"
+
+	gormLogger "gorm.io/gorm/logger"
 
 	p "github.com/nori-io/common/v5/pkg/domain/plugin"
 
@@ -18,12 +21,10 @@ import (
 	m "github.com/nori-io/common/v5/pkg/meta"
 	i "github.com/nori-io/interfaces/database/gorm"
 
-	"gorm.io/gorm"
-	gormLogger "gorm.io/gorm/logger"
-
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 var (
@@ -32,6 +33,7 @@ var (
 )
 
 func New() p.Plugin {
+	log.Println("NEW!!!")
 	return &plugin{}
 }
 
@@ -47,14 +49,14 @@ type conf struct {
 	logMode string
 }
 
-func (p plugin) Init(ctx context.Context, config config.Config, log logger.FieldLogger) error {
+func (p *plugin) Init(ctx context.Context, config config.Config, log logger.FieldLogger) error {
+	p.logger = log
+
 	var isValidDialect, isValidLogMode bool
 
-	p.logger = log
-	p.config.logMode = config.String("sql.gorm.logMode", "log mode: silent, error, warn, info")()
-	p.config.dsn = config.String("sql.gorm.dsn", "database connection string")()
-	p.config.dialect = config.String("sql.gorm.dialect", "sql dialect: mssql, mysql, postgres, sqlite")()
-
+	p.config.logMode = config.String("logMode", "log mode: silent, error, warn, info")()
+	p.config.dsn = config.String("dsn", "database connection string")()
+	p.config.dialect = config.String("dialect", "sql dialect: mysql, postgres, sqlite")()
 	for _, v := range dialects {
 		if v == p.config.dialect {
 			isValidDialect = true
@@ -75,18 +77,19 @@ func (p plugin) Init(ctx context.Context, config config.Config, log logger.Field
 	if !isValidLogMode {
 		p.config.logMode = string(0)
 	}
+
 	return nil
 }
 
-func (p plugin) Instance() interface{} {
+func (p *plugin) Instance() interface{} {
 	return p.db
 }
 
-func (p plugin) Meta() meta.Meta {
+func (p *plugin) Meta() meta.Meta {
 	return m.Meta{
 		ID: m.ID{
-			ID:      "sql/gorm",
-			Version: "1.9.15",
+			ID:      "nori/sql/gorm",
+			Version: "1.21.11",
 		},
 		Author: m.Author{
 			Name: "Nori.io",
@@ -108,7 +111,7 @@ func (p plugin) Meta() meta.Meta {
 	}
 }
 
-func (p plugin) Start(ctx context.Context, registry registry.Registry) error {
+func (p *plugin) Start(ctx context.Context, registry registry.Registry) error {
 	var err error
 
 	switch p.config.dialect {
@@ -116,28 +119,32 @@ func (p plugin) Start(ctx context.Context, registry registry.Registry) error {
 		p.db, err = gorm.Open(mysql.Open(p.config.dsn), &gorm.Config{Logger: &hook.Logger{Origin: p.logger}})
 	case "postgres":
 		p.db, err = gorm.Open(postgres.Open(p.config.dsn), &gorm.Config{})
+		p.logger.Error(err.Error())
+
 	case "sqllite":
 		p.db, err = gorm.Open(sqlite.Open(p.config.dsn), &gorm.Config{})
 	}
 	if err != nil {
-		p.logger.Error(err.Error())
-	} else {
-		logLevel, err := strconv.Atoi(p.config.logMode)
-		if err == nil {
-			p.db.Logger.LogMode(gormLogger.LogLevel(logLevel))
-		} else {
-			p.logger.Error(err.Error())
-		}
+		return err
 	}
+
+	logLevel, err := strconv.Atoi(p.config.logMode)
+	if err != nil {
+		return err
+	}
+	p.db.Logger.LogMode(gormLogger.LogLevel(logLevel))
+
 	return err
 }
 
-func (p plugin) Stop(ctx context.Context, registry registry.Registry) error {
+func (p *plugin) Stop(ctx context.Context, registry registry.Registry) error {
+	p.logger.Info("%s", "STOP BEGINNING")
 	db, err := p.db.DB()
 	if err != nil {
 		p.logger.Error(err.Error())
 		return err
 	}
 	err = db.Close()
+	p.logger.Info("%s", "STOP ENDING")
 	return err
 }
